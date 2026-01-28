@@ -1,0 +1,71 @@
+name: Build All Apps
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' # Matches your dev env
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # --- BUILD COMMANDS ---
+      
+      # WINDOWS (Semicolon separator)
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --name "CreditRiskWorkbench" --onefile --windowed --noconfirm --clean --add-data "assets;assets" app.py
+
+      # MAC & LINUX (Colon separator)
+      - name: Build Unix
+        if: runner.os != 'Windows'
+        run: |
+          pyinstaller --name "CreditRiskWorkbench" --onefile --windowed --noconfirm --clean --add-data "assets:assets" app.py
+
+      # --- PREPARE ARTIFACTS ---
+      
+      # WINDOWS
+      - name: Prepare Windows Artifact
+        if: runner.os == 'Windows'
+        run: |
+          mkdir build_artifacts
+          copy dist\CreditRiskWorkbench.exe build_artifacts\CreditRiskWorkbench_Windows.exe
+
+      # LINUX (Single file executable)
+      - name: Prepare Linux Artifact
+        if: runner.os == 'Linux'
+        run: |
+          mkdir build_artifacts
+          mv dist/CreditRiskWorkbench build_artifacts/CreditRiskWorkbench_Linux
+
+      # MAC (Zip the .app bundle)
+      - name: Prepare Mac Artifact
+        if: runner.os == 'macOS'
+        run: |
+          mkdir build_artifacts
+          cd dist
+          zip -r ../build_artifacts/CreditRiskWorkbench_macOS.zip CreditRiskWorkbench.app
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-Build
+          path: build_artifacts/
